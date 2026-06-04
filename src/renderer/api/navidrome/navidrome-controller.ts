@@ -19,8 +19,10 @@ import {
     DeleteInternetRadioStationImageResponse,
     DeletePlaylistImageArgs,
     DeletePlaylistImageResponse,
+    ExplicitStatus,
     genreListSortMap,
     InternalControllerEndpoint,
+    LibraryItem,
     playlistListSortMap,
     PlaylistSongListArgs,
     PlaylistSongListResponse,
@@ -39,6 +41,7 @@ import {
     userListSortMap,
 } from '/@/shared/types/domain-types';
 import { ServerFeature } from '/@/shared/types/features-types';
+import { ServerType } from '/@/shared/types/types';
 
 const VERSION_INFO: VersionInfo = [
     // Why 2? Subsonic controller will return 1 for its own implementation
@@ -93,6 +96,8 @@ const EXCLUDED_ALBUM_TAGS = new Set<string>([
     'website',
     'work',
 ]);
+
+const API_BASE = 'http://localhost:8080/api';
 
 const EXCLUDED_SONG_TAGS = new Set<string>(['disctotal', 'tracktotal']);
 
@@ -893,20 +898,141 @@ export const NavidromeController: InternalControllerEndpoint = {
                 },
             });
 
+            const mapItunesToFeishin = (tracks, serverId = 'global-search') => {
+                if (!tracks) return [];
+
+                return tracks.map((track) => {
+                    // Парсим год из даты релиза (например, "2026-04-22T12:00:00Z" -> 2026)
+                    const releaseYear = track.releaseDate
+                        ? new Date(track.releaseDate).getFullYear()
+                        : null;
+
+                    // Определяем статус цензуры
+                    let explicitStatus;
+                    if (track.trackExplicitness === 'explicit') {
+                        explicitStatus = ExplicitStatus.EXPLICIT;
+                    } else if (
+                        track.trackExplicitness === 'notExplicit' ||
+                        track.trackExplicitness === 'cleaned'
+                    ) {
+                        explicitStatus = ExplicitStatus.CLEAN;
+                    }
+
+                    return {
+                        _itemType: LibraryItem.SONG,
+                        _serverId: serverId,
+                        _serverType: ServerType.NAVIDROME,
+                        album: track.albumName,
+                        albumArtistName: track.artistName,
+
+                        artistName: track.artistName,
+                        artists: [
+                            {
+                                id: String(track.artistId),
+                                imageId: null,
+                                imageUrl: null,
+                                name: track.artistName,
+                                userFavorite: false,
+                                userRating: null,
+                            },
+                        ],
+
+                        bitDepth: null,
+                        bitRate: null,
+                        bpm: null,
+                        channels: null,
+                        comment: null,
+                        compilation: false,
+                        container: track.previewUrl ? track.previewUrl.split('.').pop() : 'm4a',
+                        createdAt: new Date().toISOString(), // Или дата добавления в вашу базу
+
+                        discNumber: track.discNumber || 1,
+                        discSubtitle: null,
+                        duration: track.duration,
+
+                        explicitStatus: explicitStatus,
+                        gain: null,
+
+                        genres: track.genres.map((genre) => {
+                            return {
+                                _itemType: LibraryItem.GENRE,
+                                _serverId: serverId,
+                                _serverType: ServerType.NAVIDROME,
+                                albumCount: null,
+                                id: genre.toLowerCase().replace(/\s+/g, '-'),
+                                imageId: null,
+                                imageUrl: null,
+                                name: genre,
+                                songCount: null,
+                            };
+                        }),
+                        id: String(track.trackId),
+                        imageId: String(track.trackId),
+                        imageUrl: track.imageUrls[0],
+
+                        lastPlayedAt: null,
+                        lyrics: null,
+                        mbzRecordingId: null,
+                        mbzTrackId: null,
+
+                        name: track.title,
+
+                        // В качестве пути отдаем превью от iTunes (или ваш локальный путь)
+                        path: track.previewUrl || null,
+
+                        peak: null,
+                        playCount: 0,
+                        playlistItemId: null,
+                        releaseDate: track.releaseDate,
+                        releaseYear: releaseYear,
+                        sampleRate: null,
+                        size: null,
+                        sortName: track.trackName,
+                        tags: null,
+                        trackNumber: track.trackNumber || 1,
+                        trackSubtitle: null,
+                        updatedAt: new Date().toISOString(),
+                        userFavorite: false,
+                        userRating: null,
+                    };
+                });
+            };
+
+            const globalSearchResp = await fetch(`${API_BASE}/search/track`, {
+                body: JSON.stringify({
+                    limit: query.limit,
+                    page: query.startIndex / (query.limit || 20) + 1,
+                    query: query.searchTerm,
+                    type: 'TRACK',
+                }),
+                headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+            });
+
+            const globalSearchRespData = await globalSearchResp.json();
+            const feishinLikeData = mapItunesToFeishin(globalSearchRespData.entities);
+
             if (res.status !== 200) {
                 throw new Error('Failed to get song list');
             }
 
+            if (globalSearchResp.status !== 200) {
+                console.log('Failed to get global song list');
+            }
+
             return {
-                items: res.body.data.map((song) =>
-                    ndNormalize.song(
-                        song,
-                        apiClientProps.server,
-                        args.context?.pathReplace,
-                        args.context?.pathReplaceWith,
-                    ),
-                ),
-                totalRecordCount: Number(res.body.headers.get('x-total-count') || 0),
+                items: res.body.data
+                    .map((song) =>
+                        ndNormalize.song(
+                            song,
+                            apiClientProps.server,
+                            args.context?.pathReplace,
+                            args.context?.pathReplaceWith,
+                        ),
+                    )
+                    .concat(feishinLikeData),
+                totalRecordCount:
+                    Number(res.body.headers.get('x-total-count') || 0) + feishinLikeData.length,
             };
         };
 
@@ -933,7 +1059,6 @@ export const NavidromeController: InternalControllerEndpoint = {
             totalRecordCount: albums.totalRecordCount,
         };
     },
-
     getSongListCount: async ({ apiClientProps, query }) =>
         NavidromeController.getSongList({
             apiClientProps,

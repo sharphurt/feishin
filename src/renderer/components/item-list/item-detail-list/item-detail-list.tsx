@@ -332,9 +332,12 @@ const TrackRow = memo(
             [controls, internalState, isSongsLoading, song],
         );
 
+        const isGlobalSearchTrack = song._serverId === 'global-search';
+
         return (
             <div
                 className={clsx(styles.trackRow, {
+                    [styles.globalSearchTrack]: isGlobalSearchTrack,
                     [styles.trackRowAlternateEven]: enableAlternateRowColors && rowIndex % 2 === 0,
                     [styles.trackRowAlternateOdd]: enableAlternateRowColors && rowIndex % 2 === 1,
                     [styles.trackRowDragging]: isDragging,

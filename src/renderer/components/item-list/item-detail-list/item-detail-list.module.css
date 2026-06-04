@@ -428,6 +428,10 @@
     border-right: 1px solid transparent;
 }
 
+.track-row.global-search-track {
+    background-color: var(--mantine-color-gray-1);
+}
+
 .row .track-cell-vertical-border-visible {
     border-right-color: var(--theme-colors-border);
 }

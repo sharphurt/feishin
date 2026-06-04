@@ -636,6 +636,7 @@
             "collections": "Collections",
             "artists": "$t(entity.artist, {\"count\": 2})",
             "favorites": "$t(entity.favorite, {\"count\": 2})",
+            "soulseek": "$t(entity.soulseek, {\"count\": 2})",
             "folders": "$t(entity.folder, {\"count\": 2})",
             "genres": "$t(entity.genre, {\"count\": 2})",
             "home": "$t(common.home)",

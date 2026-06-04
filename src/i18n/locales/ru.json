@@ -442,6 +442,7 @@
             "search": "$t(common.search)",
             "home": "$t(common.home)",
             "myLibrary": "Моя библиотека",
+            "soulseek": "Глобальный поиск",
             "shared": "Публичные плейлисты $t(entity.playlist, {\"count\": 2})",
             "collections": "Коллекции",
             "albumArtists": "$t(entity.albumArtist, {\"count\": 2})",
